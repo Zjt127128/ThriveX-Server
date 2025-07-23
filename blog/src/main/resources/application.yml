@@ -2,7 +2,7 @@ spring:
   application:
     name: service-system
   profiles:
-    active: pro
+    active: dev
   # 约束文件上传大小
   servlet.multipart.max-file-size: 10MB
   servlet.multipart.max-request-size: 100MB
@@ -12,7 +12,7 @@ logging.level.org.springframework.boot.autoconfigure.mail: DEBUG
 
 jwt:
   # 设置jwt签名加密时使用的秘钥
-  secret-key: yuyang
+  secret-key: zhangjt
   # 设置jwt过期时间
   ttl: 259200000
   # 设置前端传递过来的令牌名称
