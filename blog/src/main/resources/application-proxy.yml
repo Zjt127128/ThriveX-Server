@@ -1,0 +1,28 @@
+# 代理配置示例
+proxy:
+  enabled: false  # 是否启用代理
+  proxies:
+    # HTTP代理示例
+    - host: 127.0.0.1
+      port: 8080
+      type: HTTP
+      username: ""  # 如果代理需要认证
+      password: ""
+
+    # SOCKS代理示例
+    - host: 127.0.0.1
+      port: 1080
+      type: SOCKS
+      username: ""
+      password: ""
+
+    # 更多代理可以继续添加
+    # - host: proxy3.example.com
+    #   port: 3128
+    #   type: HTTP
+
+# 如果不使用代理，设置为：
+# proxy:
+#   enabled: false
+#   proxies: []
+
