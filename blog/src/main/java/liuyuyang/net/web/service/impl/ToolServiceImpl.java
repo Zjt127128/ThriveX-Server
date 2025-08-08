@@ -48,6 +48,9 @@ public class ToolServiceImpl implements ToolService {
     @Autowired
     private liuyuyang.net.config.ProxyConfig proxyConfig;
 
+    @Autowired
+    private liuyuyang.net.web.service.ProxyPoolService proxyPoolService;
+
     @Override
     public Map<String, List<Map<String, Object>>> checkUrl(List<String> urls) {
         if (CollectionUtils.isEmpty(urls)) {
@@ -84,6 +87,15 @@ public class ToolServiceImpl implements ToolService {
                     return responseCode + "_" + status;
                 }));
         log.info("unavailableUrls.size: {}", unavailableUrls.size());
+
+        // 输出代理使用统计
+        if (proxyConfig.isEnabled()) {
+            log.info("代理池状态 - 可用代理: {}/{}, 统计信息:\n{}",
+                proxyPoolService.getAvailableProxyCount(),
+                proxyPoolService.getTotalProxyCount(),
+                proxyPoolService.getProxyUsageStats());
+        }
+
         return groupedResults;
     }
 
@@ -151,13 +163,22 @@ public class ToolServiceImpl implements ToolService {
         try {
             URL url = new URL(urlString);
 
-            // 使用代理（如果配置了）
+            // 使用代理池获取代理（如果配置了）
             liuyuyang.net.config.ProxyConfig.ProxyInfo proxyInfo = null;
-            if (proxyConfig.isEnabled() && !proxyConfig.getProxies().isEmpty()) {
-                proxyInfo = proxyConfig.getRandomProxy();
+            if (proxyConfig.isEnabled()) {
+                proxyInfo = proxyPoolService.getNextProxy();
                 if (proxyInfo != null) {
-                    connection = (HttpURLConnection) url.openConnection(proxyInfo.toProxy());
-                    log.debug("Using proxy: {}:{}", proxyInfo.getHost(), proxyInfo.getPort());
+                    try {
+                        connection = (HttpURLConnection) url.openConnection(proxyInfo.toProxy());
+                        log.debug("Using proxy: {}:{}", proxyInfo.getHost(), proxyInfo.getPort());
+                    } catch (Exception e) {
+                        log.warn("Failed to connect through proxy {}:{}, marking as invalid",
+                            proxyInfo.getHost(), proxyInfo.getPort());
+                        proxyPoolService.markProxyAsInvalid(proxyInfo);
+                        // 回退到直连
+                        connection = (HttpURLConnection) url.openConnection();
+                        proxyInfo = null; // 重置代理信息
+                    }
                 } else {
                     connection = (HttpURLConnection) url.openConnection();
                 }
@@ -223,7 +244,7 @@ public class ToolServiceImpl implements ToolService {
     }
 
     // 处理反爬机制的情况
-    private static Map<String, Object> handleAntiScrapingCase(String urlString) {
+    private Map<String, Object> handleAntiScrapingCase(String urlString) {
         Map<String, Object> result = new HashMap<>();
         result.put("url", urlString);
         result.put("responseCode", 401); // 假设是401
@@ -231,7 +252,28 @@ public class ToolServiceImpl implements ToolService {
         try {
             // 使用GET请求获取完整内容
             URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            HttpURLConnection connection = null;
+
+            // 使用代理池获取代理（如果配置了）
+            liuyuyang.net.config.ProxyConfig.ProxyInfo proxyInfo = null;
+            if (proxyConfig.isEnabled()) {
+                proxyInfo = proxyPoolService.getNextProxy();
+                if (proxyInfo != null) {
+                    try {
+                        connection = (HttpURLConnection) url.openConnection(proxyInfo.toProxy());
+                        log.debug("Using proxy for anti-scraping case: {}:{}", proxyInfo.getHost(), proxyInfo.getPort());
+                    } catch (Exception e) {
+                        log.warn("Failed to connect through proxy {}:{} for anti-scraping case",
+                            proxyInfo.getHost(), proxyInfo.getPort());
+                        proxyPoolService.markProxyAsInvalid(proxyInfo);
+                        connection = (HttpURLConnection) url.openConnection();
+                    }
+                } else {
+                    connection = (HttpURLConnection) url.openConnection();
+                }
+            } else {
+                connection = (HttpURLConnection) url.openConnection();
+            }
 
             // 设置随机用户代理
             Random random = new Random();

@@ -114,4 +114,46 @@ public class ProxyPoolService {
             return false;
         }
     }
+
+    /**
+     * 获取代理使用统计信息
+     */
+    public String getProxyUsageStats() {
+        StringBuilder stats = new StringBuilder();
+        stats.append("代理使用统计:\n");
+
+        for (ProxyConfig.ProxyInfo proxy : proxyConfig.getProxies()) {
+            String proxyKey = proxy.getHost() + ":" + proxy.getPort();
+            int usage = proxyUsageCount.getOrDefault(proxyKey, new AtomicInteger(0)).get();
+            boolean isInvalid = invalidProxies.contains(proxyKey);
+
+            stats.append(String.format("  %s - 使用次数: %d, 状态: %s\n",
+                proxyKey, usage, isInvalid ? "失效" : "正常"));
+        }
+
+        return stats.toString();
+    }
+
+    /**
+     * 重置所有统计信息
+     */
+    public void resetStats() {
+        proxyUsageCount.clear();
+        invalidProxies.clear();
+        log.info("代理统计信息已重置");
+    }
+
+    /**
+     * 获取可用代理数量
+     */
+    public int getAvailableProxyCount() {
+        return getAvailableProxies().size();
+    }
+
+    /**
+     * 获取总代理数量
+     */
+    public int getTotalProxyCount() {
+        return proxyConfig.getProxies().size();
+    }
 }
